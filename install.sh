@@ -95,24 +95,54 @@ if (( ! if_needed )) && [[ -x $bindir/omaoutlook ]] && "$bindir/omaoutlook" stat
 fi
 
 install -Dm755 "$build/omaoutlook" "$bindir/omaoutlook"
-mkdir -p "$HOME/.local/bin"
-ln -sfn "$bindir/omaoutlook" "$HOME/.local/bin/omaoutlook"
+
+# Files outside $prefix are written only if they do not exist yet or are
+# listed in $owned from an earlier run; anything else at those paths belongs
+# to someone else and stays untouched. uninstall.sh removes exactly the
+# listed paths.
+owned="$prefix/installed-files"
+touch "$owned"
+ours() { [[ ! -e $1 && ! -L $1 ]] || grep -qxF -- "$1" "$owned"; }
+claim() { grep -qxF -- "$1" "$owned" || printf '%s\n' "$1" >> "$owned"; }
+# 1.0.0 installed the same files but kept no list; take them over once.
+if [[ ! -s $owned && -f $stamp_file ]]; then
+  for path in "$HOME/.local/bin/omaoutlook" \
+              "$data_home/icons/hicolor/scalable/apps/omaoutlook.svg" "$data_home/icons/hicolor/256x256/apps/omaoutlook.png" \
+              "$data_home/applications/omaoutlook.desktop" "$data_home/applications/omaoutlook-mailto.desktop"; do
+    [[ -e $path || -L $path ]] && claim "$path"
+  done
+fi
+place() {  # place <mode> <source> <target>
+  if ours "$3"; then
+    install -Dm"$1" "$2" "$3" && claim "$3"
+  else
+    echo "install.sh: $3 exists and was not installed by omaoutlook; leaving it alone" >&2
+  fi
+}
+
+link="$HOME/.local/bin/omaoutlook"
+if ours "$link" || [[ $(readlink "$link" 2>/dev/null) == "$bindir/omaoutlook" ]]; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$bindir/omaoutlook" "$link" && claim "$link"
+else
+  echo "install.sh: $link exists and is not omaoutlook's; run $bindir/omaoutlook instead" >&2
+fi
 
 # The icon is drawn in placeholder colors; recolor it from the active theme so
 # the launcher tile matches the desktop. Icon caches mean a later theme switch
-# shows the new colors after the next install.sh run (or `omaoutlook icon`).
+# shows the new colors after the next install.sh run.
 icon_dir="$data_home/icons/hicolor"
 "$here/scripts/theme-icon.sh" "$here/assets/omaoutlook.svg" "$build/omaoutlook.svg"
-install -Dm644 "$build/omaoutlook.svg" "$icon_dir/scalable/apps/omaoutlook.svg"
+place 644 "$build/omaoutlook.svg" "$icon_dir/scalable/apps/omaoutlook.svg"
 if command -v rsvg-convert >/dev/null; then
-  mkdir -p "$icon_dir/256x256/apps"
-  rsvg-convert -w 256 -h 256 "$build/omaoutlook.svg" -o "$icon_dir/256x256/apps/omaoutlook.png"
+  rsvg-convert -w 256 -h 256 "$build/omaoutlook.svg" -o "$build/omaoutlook.png"
+  place 644 "$build/omaoutlook.png" "$icon_dir/256x256/apps/omaoutlook.png"
 fi
 gtk-update-icon-cache -q "$icon_dir" 2>/dev/null || true
 
-mkdir -p "$data_home/applications"
 for entry in omaoutlook omaoutlook-mailto; do
-  sed "s|^Exec=omaoutlook|Exec=$bindir/omaoutlook|" "$here/assets/$entry.desktop" > "$data_home/applications/$entry.desktop"
+  sed "s|^Exec=omaoutlook|Exec=$bindir/omaoutlook|" "$here/assets/$entry.desktop" > "$build/$entry.desktop"
+  place 644 "$build/$entry.desktop" "$data_home/applications/$entry.desktop"
 done
 update-desktop-database -q "$data_home/applications" 2>/dev/null || true
 

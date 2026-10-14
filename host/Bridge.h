@@ -36,7 +36,7 @@ public:
     Q_INVOKABLE void watch(const QString &path);
 
     Q_INVOKABLE void run(const QString &program, const QStringList &arguments);
-    Q_INVOKABLE int runCapture(const QString &program, const QStringList &arguments);
+    Q_INVOKABLE int runCapture(const QString &program, const QStringList &arguments, int timeoutMs = 15000);
     Q_INVOKABLE void reply(int connection, const QString &text);
     Q_INVOKABLE void watchExposure(QWindow *window);
     Q_INVOKABLE void createHidden(QWindow *window);

@@ -345,7 +345,7 @@ Window {
   function openTeams(url) {
     trace("teams", url)
     if (!teamsInOmateams || !Sys.exists(teamsBinary)) { openExternal(url); return }
-    var id = Sys.runCapture(teamsBinary, ["open", url])
+    var id = Sys.runCapture(teamsBinary, ["open", url], 60 * 1000)
     var pending = pendingHandoffs
     pending[id] = url
     pendingHandoffs = pending
@@ -584,7 +584,7 @@ Window {
       "-A", "default=Open",
       String(notification.title || "Outlook"),
       String(notification.message || "")
-    ])
+    ], 30 * 60 * 1000)
     var pending = pendingNotifications
     pending[id] = notification
     pendingNotifications = pending
@@ -609,7 +609,7 @@ Window {
       var file = download.downloadDirectory + "/" + download.downloadFileName
       var id = Sys.runCapture("notify-send", ["-a", "Outlook", "-i", "omaoutlook",
         "-A", "default=Open", "-A", "folder=Show in folder",
-        "Download finished", String(download.downloadFileName)])
+        "Download finished", String(download.downloadFileName)], 30 * 60 * 1000)
       var pending = win.pendingDownloads
       pending[id] = file
       win.pendingDownloads = pending

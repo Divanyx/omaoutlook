@@ -18,17 +18,24 @@ if [[ -x $prefix/bin/omaoutlook ]]; then
   "$prefix/bin/omaoutlook" quit 2>/dev/null || true
 fi
 
-rm -f "$HOME/.local/bin/omaoutlook"
-rm -f "$data_home/applications/omaoutlook.desktop" "$data_home/applications/omaoutlook-mailto.desktop"
-# Hand mailto back if it was ours; the desktop then asks again or uses its default.
-if [[ $(xdg-mime query default x-scheme-handler/mailto 2>/dev/null) == omaoutlook-mailto.desktop ]]; then
-  sed -i '/^x-scheme-handler\/mailto=omaoutlook-mailto.desktop/d' "${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list" 2>/dev/null || true
+# Only what install.sh recorded as its own; a launcher, desktop entry or
+# icon of the same name that was there before is left alone.
+owned="$prefix/installed-files"
+if [[ -f $owned ]]; then
+  while IFS= read -r path; do
+    [[ -n $path ]] && rm -f -- "$path"
+  done < "$owned"
+  rm -f -- "$owned"
 fi
-rm -f "$data_home/icons/hicolor/scalable/apps/omaoutlook.svg" "$data_home/icons/hicolor/256x256/apps/omaoutlook.png"
+# Hand mailto back if it was ours; the desktop then uses its default again.
+mimeapps="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
+if [[ $(xdg-mime query default x-scheme-handler/mailto 2>/dev/null) == omaoutlook-mailto.desktop ]]; then
+  sed -i '/^x-scheme-handler\/mailto=omaoutlook-mailto.desktop/d' "$mimeapps" 2>/dev/null || true
+fi
 gtk-update-icon-cache -q "$data_home/icons/hicolor" 2>/dev/null || true
 update-desktop-database -q "$data_home/applications" 2>/dev/null || true
-rm -rf "$prefix/bin" "$prefix/build-stamp" "${XDG_CACHE_HOME:-$HOME/.cache}/omaoutlook"
-rm -rf "${XDG_RUNTIME_DIR:-/tmp}/omaoutlook"
+rm -rf -- "$prefix/bin" "$prefix/build-stamp" "${XDG_CACHE_HOME:-$HOME/.cache}/omaoutlook"
+rm -rf -- "${XDG_RUNTIME_DIR:-/tmp}/omaoutlook"
 
 if (( purge )); then
   rm -rf "$prefix" "${XDG_CONFIG_HOME:-$HOME/.config}/omaoutlook" "${XDG_STATE_HOME:-$HOME/.local/state}/omaoutlook"

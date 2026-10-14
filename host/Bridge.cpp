@@ -11,6 +11,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QTimer>
 #include <QWindow>
 
 Bridge::Bridge(QLocalServer *server, QObject *parent)
@@ -111,23 +112,46 @@ void Bridge::run(const QString &program, const QStringList &arguments)
     QProcess::startDetached(program, arguments);
 }
 
-int Bridge::runCapture(const QString &program, const QStringList &arguments)
+// Runs a helper (notify-send waiting for a click, hyprctl) and reports its
+// output. Every process is bounded: it is killed after timeoutMs, and only the
+// first 64 KiB of its output are kept, so a helper that hangs or floods can
+// neither pile up nor grow the host.
+int Bridge::runCapture(const QString &program, const QStringList &arguments, int timeoutMs)
 {
     const int id = m_nextProcess++;
     auto *process = new QProcess(this);
     process->setProgram(program);
     process->setArguments(arguments);
     process->setProcessChannelMode(QProcess::SeparateChannels);
-    connect(process, &QProcess::finished, this, [this, process, id](int exitCode, QProcess::ExitStatus) {
-        emit processFinished(id, exitCode, QString::fromUtf8(process->readAllStandardOutput()));
+    process->setStandardErrorFile(QProcess::nullDevice());
+    auto *output = new QByteArray;
+    auto finish = [this, process, id, output](int exitCode) {
+        if (process->property("omaoutlookDone").toBool())
+            return;
+        process->setProperty("omaoutlookDone", true);
+        emit processFinished(id, exitCode, QString::fromUtf8(*output));
+        delete output;
         process->deleteLater();
+    };
+    connect(process, &QProcess::readyReadStandardOutput, this, [process, output] {
+        const QByteArray chunk = process->readAllStandardOutput();
+        if (output->size() < 64 * 1024)
+            output->append(chunk.left(64 * 1024 - output->size()));
     });
-    connect(process, &QProcess::errorOccurred, this, [this, process, id](QProcess::ProcessError error) {
-        if (error == QProcess::FailedToStart) {
-            emit processFinished(id, -1, QString());
-            process->deleteLater();
-        }
+    connect(process, &QProcess::finished, this, [finish](int exitCode, QProcess::ExitStatus) { finish(exitCode); });
+    connect(process, &QProcess::errorOccurred, this, [process, finish](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            finish(-1);
+        else if (error == QProcess::Timedout && process->state() != QProcess::NotRunning)
+            process->kill();
     });
+    auto *timer = new QTimer(process);
+    timer->setSingleShot(true);
+    connect(timer, &QTimer::timeout, process, [process] {
+        if (process->state() != QProcess::NotRunning)
+            process->kill();
+    });
+    timer->start(qMax(1000, timeoutMs));
     process->start();
     return id;
 }
