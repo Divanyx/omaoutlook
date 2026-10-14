@@ -1,0 +1,14 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/">
+    <file>qml/Main.qml</file>
+    <file>qml/AuthWindow.qml</file>
+    <file>qml/PopoutWindow.qml</file>
+    <file>qml/WebAuthDialog.qml</file>
+    <file>qml/CertificateDialog.qml</file>
+    <file>qml/Theme.js</file>
+    <file>qml/WebAuth.js</file>
+    <file>qml/Page.js</file>
+    <file>qml/Links.js</file>
+  </qresource>
+</RCC>

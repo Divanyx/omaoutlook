@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" shape-rendering="crispEdges">
+  <!-- Omaoutlook icon. Everything sits on an 8px grid with single-step corners,
+       the pixel language of Omarchy's own mark: an "O" tile in front of an
+       envelope, the way Outlook composes its logo. install.sh recolors it
+       from the active theme: #10131a background, #9ece6a accent, #dbe3ea
+       foreground, #6f7a8a dark_foreground. -->
+  <path fill="#10131a" d="M16 0h224v8h8v8h8v224h-8v8h-8v8H16v-8H8v-8H0V16h8V8h8z"/>
+
+  <!-- envelope behind: body, then its flap folded in -->
+  <path fill="#dbe3ea" d="M104 64h128v8h8v120h-8v8H104z"/>
+  <path fill="#6f7a8a" d="M136 72h8v8h-8zM224 72h8v8h-8zM136 80h8v8h-8zM224 80h8v8h-8zM144 80h8v8h-8zM216 80h8v8h-8zM144 88h8v8h-8zM216 88h8v8h-8zM152 88h8v8h-8zM208 88h8v8h-8zM152 96h8v8h-8zM208 96h8v8h-8zM160 96h8v8h-8zM200 96h8v8h-8zM160 104h8v8h-8zM200 104h8v8h-8zM168 104h8v8h-8zM192 104h8v8h-8zM168 112h8v8h-8zM192 112h8v8h-8zM176 112h8v8h-8zM184 112h8v8h-8zM176 120h8v8h-8zM184 120h8v8h-8zM184 120h8v8h-8zM176 120h8v8h-8zM184 128h8v8h-8zM176 128h8v8h-8z"/>
+
+  <!-- O tile in front -->
+  <path fill="#9ece6a" d="M24 56h112v8h8v128h-8v8H24v-8h-8V64h8z"/>
+  <path fill="#10131a" d="M48 88h64v8h8v64h-8v8H48v-8h-8V96h8z"/>
+  <path fill="#9ece6a" d="M64 104h32v48H64z"/>
+</svg>

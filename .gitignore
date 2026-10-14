@@ -1,0 +1,9 @@
+# qmake build products (the build runs in ~/.cache/omaoutlook/build)
+build/
+*.o
+moc_*
+qrc_*.cpp
+Makefile
+.qmake.stash
+host/omaoutlook
+node_modules/

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Outlook (Omaoutlook) — new message
+Comment=Write a new message in Outlook
+Exec=omaoutlook open %u
+Icon=omaoutlook
+Terminal=false
+NoDisplay=true
+MimeType=x-scheme-handler/mailto;
+StartupWMClass=omaoutlook

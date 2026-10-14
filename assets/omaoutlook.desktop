@@ -1,0 +1,24 @@
+[Desktop Entry]
+Type=Application
+Name=Outlook (Omaoutlook)
+GenericName=Mail and calendar
+Comment=Microsoft Outlook in an Omarchy-themed window
+Exec=omaoutlook show
+Icon=omaoutlook
+Terminal=false
+Categories=Network;Email;Calendar;Office;
+Keywords=outlook;mail;email;calendar;microsoft;exchange;office;
+StartupWMClass=omaoutlook
+Actions=compose;background;quit;
+
+[Desktop Action compose]
+Name=New message
+Exec=omaoutlook compose
+
+[Desktop Action background]
+Name=Start in background
+Exec=omaoutlook --hidden
+
+[Desktop Action quit]
+Name=Quit Outlook
+Exec=omaoutlook quit

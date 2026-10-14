@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "id": "omaoutlook",
+  "name": "Omaoutlook",
+  "version": "1.0.0",
+  "author": "Divanyx",
+  "license": "MIT",
+  "homepage": "https://github.com/Divanyx/omaoutlook",
+  "description": "Microsoft Outlook for Omarchy: the real Outlook web client in its own window, re-skinned live with your Omarchy theme, and behaving like the Outlook app. Any sign-in works (password, Authenticator, security key, certificate, federated), links in mail open in your default browser, popped-out messages and new mails get their own Outlook windows, mailto links start a message, Teams meeting links go to Teams, printing opens a PDF. Unread badge in the bar, desktop notifications and reminders, and a watchdog that keeps a page running for weeks from eating your RAM.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "ui/Service.qml",
+    "barWidget": "ui/BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Omaoutlook",
+    "description": "Unread mail badge in the bar; Outlook itself opens as its own Omarchy-themed window. Middle click writes a new message.",
+    "category": "Communication",
+    "aliases": [
+      "outlook",
+      "microsoft outlook",
+      "mail",
+      "email",
+      "calendar",
+      "exchange",
+      "office 365",
+      "m365"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showBarIcon": true,
+      "showCount": true,
+      "runInBackground": true,
+      "notifications": "On",
+      "followTheme": true,
+      "useShellFont": true,
+      "zoom": 100,
+      "closeAction": "Hide window",
+      "memoryLimit": 1536,
+      "url": "https://outlook.cloud.microsoft/mail/",
+      "mailtoHandler": false,
+      "teamsLinks": "Omateams",
+      "downloadDir": ""
+    },
+    "schema": [
+      {
+        "key": "showBarIcon",
+        "type": "boolean",
+        "label": "Show the icon in the bar",
+        "defaultValue": true,
+        "description": "Turn this off to keep Outlook running without an icon in the bar. Bind a key to open it instead: o.bind(\"SUPER + SHIFT + O\", \"Outlook\", \"omaoutlook toggle\")"
+      },
+      {
+        "key": "showCount",
+        "type": "boolean",
+        "label": "Show the unread count next to the icon",
+        "defaultValue": true
+      },
+      {
+        "key": "runInBackground",
+        "type": "boolean",
+        "label": "Start Outlook hidden with the shell",
+        "defaultValue": true,
+        "description": "Launches the Outlook window in the background when the bar loads, so the unread badge, new-mail notifications and calendar reminders work before you open it. Costs the memory of one browser tab."
+      },
+      {
+        "key": "notifications",
+        "type": "enum",
+        "label": "Desktop notifications",
+        "options": [
+          "On",
+          "Off"
+        ],
+        "defaultValue": "On",
+        "description": "Forwards Outlook's new-mail and reminder notifications to the Omarchy notification daemon. Clicking one opens the message. Outlook asks once (Settings › General › Notifications)."
+      },
+      {
+        "key": "mailtoHandler",
+        "type": "boolean",
+        "label": "Open mailto links in Outlook",
+        "defaultValue": false,
+        "description": "Makes Omaoutlook the desktop's handler for mailto links, so a mail address clicked in any app starts a new Outlook message. Off hands the links back."
+      },
+      {
+        "key": "teamsLinks",
+        "type": "enum",
+        "label": "Teams meeting links",
+        "options": [
+          "Omateams",
+          "Browser"
+        ],
+        "defaultValue": "Omateams",
+        "description": "Join links in invitations open in Omateams when it is installed, otherwise in the default browser."
+      },
+      {
+        "key": "downloadDir",
+        "type": "string",
+        "label": "Save attachments to",
+        "defaultValue": "",
+        "description": "Folder for downloaded attachments; empty means ~/Downloads."
+      },
+      {
+        "key": "followTheme",
+        "type": "boolean",
+        "label": "Re-skin Outlook with the Omarchy theme",
+        "defaultValue": true,
+        "description": "Maps Outlook's design tokens to your theme's colors.toml and follows theme switches live, light or dark. Off leaves Outlook with Microsoft's own look."
+      },
+      {
+        "key": "useShellFont",
+        "type": "boolean",
+        "label": "Use the shell font",
+        "defaultValue": true,
+        "description": "Renders Outlook in the same monospace family as the bar and menus. Off keeps Outlook's default sans-serif. Message bodies keep the fonts their sender chose."
+      },
+      {
+        "key": "zoom",
+        "type": "integer",
+        "label": "Zoom (%)",
+        "min": 50,
+        "max": 200,
+        "step": 10,
+        "defaultValue": 100
+      },
+      {
+        "key": "closeAction",
+        "type": "enum",
+        "label": "Closing the window",
+        "options": [
+          "Hide window",
+          "Quit"
+        ],
+        "defaultValue": "Hide window",
+        "description": "Hide keeps Outlook running for the badge, notifications and reminders; Quit ends the process."
+      },
+      {
+        "key": "memoryLimit",
+        "type": "integer",
+        "label": "Reload Outlook in the background above (MB)",
+        "min": 0,
+        "max": 16384,
+        "step": 256,
+        "defaultValue": 1536,
+        "description": "Outlook grows over a long session. Once its page uses more than this, and half again as much as it took when fresh, it is reloaded while the window has been out of sight for ten minutes, no popout is open and no message is being written, at most once an hour. 0 never reloads."
+      },
+      {
+        "key": "url",
+        "type": "string",
+        "label": "Outlook URL",
+        "defaultValue": "https://outlook.cloud.microsoft/mail/",
+        "description": "https://outlook.live.com/mail/ for a personal Outlook.com account. Change it only if your organisation uses a different endpoint (GCC: outlook.office365.us)."
+      }
+    ]
+  }
+}

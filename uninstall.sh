@@ -1,0 +1,39 @@
+#!/bin/bash
+# Removes what install.sh created. The signed-in Outlook profile under
+# ~/.local/share/omaoutlook/QtWebEngine stays unless --purge is given.
+set -euo pipefail
+
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+prefix="$data_home/omaoutlook"
+purge=0
+for arg in "$@"; do
+  case "$arg" in
+    --purge) purge=1 ;;
+    -h|--help) echo "Usage: uninstall.sh [--purge]   (--purge also deletes the signed-in profile and settings)"; exit 0 ;;
+    *) echo "uninstall.sh: unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
+
+if [[ -x $prefix/bin/omaoutlook ]]; then
+  "$prefix/bin/omaoutlook" quit 2>/dev/null || true
+fi
+
+rm -f "$HOME/.local/bin/omaoutlook"
+rm -f "$data_home/applications/omaoutlook.desktop" "$data_home/applications/omaoutlook-mailto.desktop"
+# Hand mailto back if it was ours; the desktop then asks again or uses its default.
+if [[ $(xdg-mime query default x-scheme-handler/mailto 2>/dev/null) == omaoutlook-mailto.desktop ]]; then
+  sed -i '/^x-scheme-handler\/mailto=omaoutlook-mailto.desktop/d' "${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list" 2>/dev/null || true
+fi
+rm -f "$data_home/icons/hicolor/scalable/apps/omaoutlook.svg" "$data_home/icons/hicolor/256x256/apps/omaoutlook.png"
+gtk-update-icon-cache -q "$data_home/icons/hicolor" 2>/dev/null || true
+update-desktop-database -q "$data_home/applications" 2>/dev/null || true
+rm -rf "$prefix/bin" "$prefix/build-stamp" "${XDG_CACHE_HOME:-$HOME/.cache}/omaoutlook"
+rm -rf "${XDG_RUNTIME_DIR:-/tmp}/omaoutlook"
+
+if (( purge )); then
+  rm -rf "$prefix" "${XDG_CONFIG_HOME:-$HOME/.config}/omaoutlook" "${XDG_STATE_HOME:-$HOME/.local/state}/omaoutlook"
+  echo "Removed the host, the Outlook profile and the settings."
+else
+  echo "Removed the host. The Outlook profile stays in $prefix (delete with --purge)."
+fi
+echo "Remove the bar widget with:  omarchy plugin remove omaoutlook"
