@@ -62,6 +62,14 @@ version=$(jq -r '.version // "dev"' "$here/manifest.json" 2>/dev/null || echo de
 # The stamp names everything the binary depends on: the plugin version, the
 # host sources and the Qt it was linked against. A plugin update or a Qt
 # upgrade changes it, and the plugin's service then rebuilds on the next load.
+# The shell reloads a plugin on every file a `git pull` touches, and each
+# reload runs this script; a second build in the same directory would delete
+# the first one's objects mid-link. Builds take turns instead, and the ones
+# that waited find the stamp current and return at once.
+mkdir -p "$prefix"
+exec 9>"$prefix/.install.lock"
+flock 9
+
 stamp_file="$prefix/build-stamp"
 stamp=$(
   {
