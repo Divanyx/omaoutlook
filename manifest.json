@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "omaoutlook",
   "name": "Omaoutlook",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Divanyx",
   "license": "MIT",
   "homepage": "https://github.com/Divanyx/omaoutlook",
-  "description": "Microsoft Outlook for Omarchy: the real Outlook web client in its own window, re-skinned live with your Omarchy theme, and behaving like the Outlook app. Any sign-in works (password, Authenticator, security key, certificate, federated), links in mail open in your default browser, popped-out messages and new mails get their own Outlook windows, mailto links start a message, Teams meeting links go to Teams, printing opens a PDF. Unread badge in the bar, desktop notifications and reminders, and a watchdog that keeps a page running for weeks from eating your RAM.",
+  "description": "Microsoft Outlook for Omarchy: the real Outlook web client in its own window, re-skinned live with your Omarchy theme and behaving like the Outlook app. Every sign-in works, links in mail open in your browser, popouts and new mails get Outlook windows, mailto starts a message, Teams links go to Teams. Unread badge in the bar, notifications, printing, and a memory watchdog for weeks of uptime.",
   "kinds": [
     "service",
     "bar-widget"
