@@ -35,7 +35,7 @@ Two parts:
 - **The host** (`omaoutlook`) — a small Qt/QML program that hosts Outlook in
   a QtWebEngine view with a persistent profile, injects the theme, routes
   every link and window Outlook opens, forwards notifications to
-  `notify-send`, handles sign-in popups, security keys, client certificates,
+  the desktop's notification daemon, handles sign-in popups, security keys, client certificates,
   downloads and printing, and writes a status file. It runs as its own
   process on purpose: a Chromium renderer fault must never take the desktop
   shell down with it, and Quickshell cannot initialise the WebEngine anyway.
@@ -188,7 +188,13 @@ deals with it on several levels:
 - **Seamless SSO** works with a Kerberos ticket (`kinit`) for tenants that
   offer it; without one the normal sign-in appears.
 - **Notifications** need Outlook's own switch once: Settings › General ›
-  Notifications › Desktop notifications.
+  Notifications › Desktop notifications. They go to the notification daemon
+  over D-Bus, never through a command line, so a mail's sender and subject
+  do not show up in the process list.
+- **Permissions.** Outlook gets notifications and the clipboard without
+  asking. The microphone (dictation), the camera, the screen and the
+  location need a yes in a dialog first, and only Microsoft's own sites can
+  ask; every other request is refused. The answer is remembered per site.
 - **What theming can't reach.** Message bodies keep their sender's design
   (Outlook's own dark mode adapts them), and images and a few brand accents
   stay as they are.

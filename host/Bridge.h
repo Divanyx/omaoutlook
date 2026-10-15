@@ -13,9 +13,9 @@ class QLocalSocket;
 class QProcess;
 
 // The small native surface the QML host needs and plain QML cannot provide:
-// files, a directory watch for the Omarchy theme, child processes for
-// notify-send/hyprctl, and the local socket the bar widget and the CLI use
-// to talk to the running instance.
+// files, a directory watch for the Omarchy theme, desktop notifications,
+// child processes for hyprctl and the browser hand-off, and the local socket
+// the bar widget and the CLI use to talk to the running instance.
 class Bridge : public QObject {
     Q_OBJECT
 public:
@@ -45,15 +45,22 @@ public:
     Q_INVOKABLE void setColorScheme(bool dark);
     Q_INVOKABLE bool writeBytes(const QString &path, const QByteArray &data);
     Q_INVOKABLE QString uniquePath(const QString &directory, const QString &name) const;
+    Q_INVOKABLE uint notify(const QString &summary, const QString &body, const QStringList &actions = {});
 
 signals:
     void fileChanged(const QString &path);
     void processFinished(int id, int exitCode, const QString &output);
     void command(int connection, const QString &line);
     void exposureChanged(QWindow *window, bool exposed);
+    void notificationAction(uint id, const QString &action);
+    void notificationClosed(uint id);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+
+private slots:
+    void onNotificationAction(uint id, const QString &action);
+    void onNotificationClosed(uint id, uint reason);
 
 private:
     void acceptConnection();

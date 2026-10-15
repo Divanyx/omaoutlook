@@ -539,7 +539,7 @@ Window {
 
   function printed(path, success) {
     if (success) openExternal("file://" + path)
-    else Sys.run("notify-send", ["-a", "Outlook", "-i", "omaoutlook", "Printing failed", "Outlook could not render the page for printing."])
+    else Sys.notify("Printing failed", "Outlook could not render the page for printing.")
   }
 
   function printFrame(frame) {
@@ -571,20 +571,17 @@ Window {
   // needs a Chromium UI that QtWebEngine does not carry.
   function reportWebAuth(message) {
     if (String(message).indexOf(WebAuth.MARKER) !== 0) return
-    Sys.run("notify-send", ["-a", "Outlook", "-i", "omaoutlook",
-      "Passkey sign-in did not work",
-      "No security key answered. Passkeys kept on this device or on your phone cannot be used here — sign in with your password or the Authenticator app."])
+    Sys.notify("Passkey sign-in did not work",
+      "No security key answered. Passkeys kept on this device or on your phone cannot be used here — sign in with your password or the Authenticator app.")
   }
 
   function presentNotification(notification) {
     if (!notificationsEnabled) { notification.close(); return }
-    var id = Sys.runCapture("notify-send", [
-      "-a", "Outlook", "-i", "omaoutlook",
-      "-h", "string:desktop-entry:omaoutlook",
-      "-A", "default=Open",
-      String(notification.title || "Outlook"),
-      String(notification.message || "")
-    ], 30 * 60 * 1000)
+    // Over D-Bus, never on a command line: title and body are a mail's sender
+    // and subject.
+    var id = Sys.notify(String(notification.title || "Outlook"), String(notification.message || ""),
+      ["default", "Open"])
+    if (id === 0) return
     var pending = pendingNotifications
     pending[id] = notification
     pendingNotifications = pending
@@ -592,6 +589,19 @@ Window {
       var p = win.pendingNotifications
       if (p[id] === notification) delete p[id]
     })
+  }
+
+  function forgetNotification(id) {
+    if (pendingNotifications[id] !== undefined) {
+      var n = pendingNotifications
+      delete n[id]
+      pendingNotifications = n
+    }
+    if (pendingDownloads[id] !== undefined) {
+      var d = pendingDownloads
+      delete d[id]
+      pendingDownloads = d
+    }
   }
 
   // Attachments land in the download folder under their own name ("name (1)"
@@ -607,9 +617,9 @@ Window {
       win.activeDownloads = Math.max(0, win.activeDownloads - 1)
       if (download.state !== WebEngineDownloadRequest.DownloadCompleted) return
       var file = download.downloadDirectory + "/" + download.downloadFileName
-      var id = Sys.runCapture("notify-send", ["-a", "Outlook", "-i", "omaoutlook",
-        "-A", "default=Open", "-A", "folder=Show in folder",
-        "Download finished", String(download.downloadFileName)], 30 * 60 * 1000)
+      var id = Sys.notify("Download finished", String(download.downloadFileName),
+        ["default", "Open", "folder", "Show in folder"])
+      if (id === 0) return
       var pending = win.pendingDownloads
       pending[id] = file
       win.pendingDownloads = pending
@@ -632,7 +642,6 @@ Window {
         if (exitCode === 0 && value !== win.rounding) { win.rounding = value; win.rebuildCss() }
         return
       }
-      var answer = String(output).trim()
       if (win.pendingHandoffs[id] !== undefined) {
         var handoffs = win.pendingHandoffs
         var url = handoffs[id]
@@ -642,25 +651,24 @@ Window {
         if (exitCode !== 0) win.openExternal(url)
         return
       }
+    }
+    function onNotificationAction(id, action) {
       if (win.pendingDownloads[id] !== undefined) {
-        var downloads = win.pendingDownloads
-        var file = downloads[id]
-        delete downloads[id]
-        win.pendingDownloads = downloads
-        if (answer === "default") win.openExternal("file://" + file)
-        else if (answer === "folder") win.openExternal("file://" + file.slice(0, file.lastIndexOf("/")))
+        var file = win.pendingDownloads[id]
+        win.forgetNotification(id)
+        if (action === "default") win.openExternal("file://" + file)
+        else if (action === "folder") win.openExternal("file://" + file.slice(0, file.lastIndexOf("/")))
         return
       }
       var notification = win.pendingNotifications[id]
       if (!notification) return
-      var pending = win.pendingNotifications
-      delete pending[id]
-      win.pendingNotifications = pending
-      if (answer === "default") {
+      win.forgetNotification(id)
+      if (action === "default") {
         win.showWindow()
         notification.click()
       }
     }
+    function onNotificationClosed(id) { win.forgetNotification(id) }
     function onCommand(connection, line) { win.handleCommand(connection, line) }
     function onExposureChanged(window, exposed) {
       if (window === win) {
@@ -732,6 +740,7 @@ Window {
   Component { id: popoutWindow; PopoutWindow {} }
   Component { id: webAuthDialog; WebAuthDialog {} }
   Component { id: certificateDialog; CertificateDialog {} }
+  Component { id: permissionDialog; PermissionDialog {} }
 
   // Chromium leaves the whole WebAuthn user experience to the application: the
   // PIN, the account to use, the "touch your key now" and the reason a key was
@@ -755,6 +764,7 @@ Window {
   // its new-mail and reminder notifications work as soon as Outlook's own
   // switch (Settings > General > Notifications) is on.
   function grantNotifications() {
+    revokeBroadGrants()
     var hosts = Links.OUTLOOK_HOSTS
     for (var i = 0; i < hosts.length; i++) {
       var permission = profile.queryPermission("https://" + hosts[i], WebEnginePermission.PermissionType.Notifications)
@@ -762,9 +772,63 @@ Window {
     }
   }
 
-  function grantPermission(permission) {
-    if (Links.isMicrosoft(String(permission.origin))) permission.grant()
-    else permission.deny()
+  // Up to 1.0.3 every Microsoft site got whatever it asked for, and the
+  // profile kept those grants. Once per profile, everything but Outlook's
+  // notifications and clipboard goes back to "ask".
+  function revokeBroadGrants() {
+    var marker = Sys.stateDir() + "/omaoutlook/permissions-v2"
+    if (Sys.exists(marker)) return
+    var all = profile.listAllPermissions()
+    for (var i = 0; i < all.length; i++) {
+      var p = all[i]
+      var keep = Links.isOutlook(String(p.origin))
+        && (p.permissionType === WebEnginePermission.PermissionType.Notifications
+            || p.permissionType === WebEnginePermission.PermissionType.ClipboardReadWrite)
+      if (!keep && p.state === WebEnginePermission.State.Granted) p.reset()
+    }
+    Sys.makePath(Sys.stateDir() + "/omaoutlook")
+    Sys.writeFile(marker, "1\n")
+  }
+
+  // What a page may use. Outlook itself gets what a mail client needs without
+  // asking: notifications and the clipboard (pasting images and tables).
+  // The microphone (dictation), the camera, the screen and the location are
+  // granted only after the user says so, and only to Microsoft's own sites;
+  // everything else, and every request from anywhere else, is refused. A
+  // choice is remembered by the profile, so the question comes once per site.
+  function grantPermission(permission, parentWindow) {
+    var origin = String(permission.origin)
+    var type = permission.permissionType
+    if (Links.isOutlook(origin) && (type === WebEnginePermission.PermissionType.Notifications
+                                    || type === WebEnginePermission.PermissionType.ClipboardReadWrite)) {
+      permission.grant()
+      return
+    }
+    var what = permissionLabel(type)
+    if (what === "" || !Links.isMicrosoft(origin)) { permission.deny(); return }
+    var dialog = permissionDialog.createObject(parentWindow || win, {
+      permission: permission, what: what,
+      pal: win.themePalette,
+      radius: win.rounding >= 0 ? win.rounding : 8,
+      transientParent: parentWindow || win
+    })
+    if (!dialog) { permission.deny(); return }
+    dialog.show()
+    dialog.requestActivate()
+  }
+
+  function permissionLabel(type) {
+    switch (type) {
+    case WebEnginePermission.PermissionType.MediaAudioCapture: return qsTr("use your microphone")
+    case WebEnginePermission.PermissionType.MediaVideoCapture: return qsTr("use your camera")
+    case WebEnginePermission.PermissionType.MediaAudioVideoCapture: return qsTr("use your camera and microphone")
+    case WebEnginePermission.PermissionType.DesktopVideoCapture:
+    case WebEnginePermission.PermissionType.DesktopAudioVideoCapture: return qsTr("see your screen")
+    case WebEnginePermission.PermissionType.Geolocation: return qsTr("know your location")
+    case WebEnginePermission.PermissionType.Notifications: return qsTr("show notifications")
+    case WebEnginePermission.PermissionType.ClipboardReadWrite: return qsTr("read the clipboard")
+    default: return ""
+    }
   }
 
   WebEngineProfile {
@@ -810,7 +874,7 @@ Window {
     onJavaScriptConsoleMessage: function(level, message) { win.pageMessage(message) }
     onUrlChanged: statusTimer.restart()
 
-    onPermissionRequested: function(permission) { win.grantPermission(permission) }
+    onPermissionRequested: function(permission) { win.grantPermission(permission, win) }
     onWebAuthUxRequested: function(request) { win.showWebAuthUx(request, win) }
     onSelectClientCertificate: function(selection) { win.selectCertificate(selection, win) }
     onNewWindowRequested: function(request) { win.routeNewWindow(request, view) }

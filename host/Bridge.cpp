@@ -1,6 +1,10 @@
 #include "Bridge.h"
 
 #include <QCoreApplication>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusReply>
+#include <QVariantMap>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -30,6 +34,16 @@ Bridge::Bridge(QLocalServer *server, QObject *parent)
     };
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, rearm);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, rearm);
+
+    // Clicks on our notifications come back as signals of the notification
+    // daemon; each one names the notification id notify() returned.
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    bus.connect(QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
+                QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("ActionInvoked"),
+                this, SLOT(onNotificationAction(uint,QString)));
+    bus.connect(QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
+                QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("NotificationClosed"),
+                this, SLOT(onNotificationClosed(uint,uint)));
 }
 
 QString Bridge::home() const
@@ -323,4 +337,33 @@ void Bridge::readCommand(QLocalSocket *socket, int id)
     const QString line = QString::fromUtf8(socket->readLine()).trimmed();
     if (!line.isEmpty())
         emit command(id, line);
+}
+
+// A desktop notification, sent straight to the notification daemon over
+// D-Bus. Not through notify-send: a helper waiting for the click would carry
+// the sender and subject of a mail on its command line, readable by every
+// process of the system for as long as the notification is up. actions is a
+// flat list of key/label pairs; "default" is a click on the notification.
+// Returns the daemon's id (0 when there is no daemon).
+uint Bridge::notify(const QString &summary, const QString &body, const QStringList &actions)
+{
+    QDBusMessage call = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("/org/freedesktop/Notifications"),
+        QStringLiteral("org.freedesktop.Notifications"), QStringLiteral("Notify"));
+    QVariantMap hints;
+    hints.insert(QStringLiteral("desktop-entry"), QStringLiteral("omaoutlook"));
+    call << QStringLiteral("Outlook") << uint(0) << QStringLiteral("omaoutlook") << summary << body
+         << actions << hints << int(-1);
+    QDBusReply<uint> reply = QDBusConnection::sessionBus().call(call, QDBus::Block, 5000);
+    return reply.isValid() ? reply.value() : 0;
+}
+
+void Bridge::onNotificationAction(uint id, const QString &action)
+{
+    emit notificationAction(id, action);
+}
+
+void Bridge::onNotificationClosed(uint id, uint)
+{
+    emit notificationClosed(id);
 }

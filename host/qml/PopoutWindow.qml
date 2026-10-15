@@ -49,7 +49,7 @@ Window {
     onJavaScriptConsoleMessage: function(level, message) { if (root.host) root.host.pageMessage(message) }
     onNewWindowRequested: function(request) { root.host.routeNewWindow(request, popoutView) }
     onNavigationRequested: function(request) { root.host.routeNavigation(request, popoutView) }
-    onPermissionRequested: function(permission) { root.host.grantPermission(permission) }
+    onPermissionRequested: function(permission) { root.host.grantPermission(permission, root) }
     onWebAuthUxRequested: function(request) { root.host.showWebAuthUx(request, root) }
     onSelectClientCertificate: function(selection) { root.host.selectCertificate(selection, root) }
     onPrintRequestedByFrame: function(frame) { root.host.printFrame(frame) }

@@ -1,4 +1,4 @@
-QT += quick webenginequick network
+QT += quick webenginequick network dbus
 CONFIG += c++17
 TARGET = omaoutlook
 
