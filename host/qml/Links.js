@@ -163,3 +163,42 @@ function composeUrl(mailto, base) {
   add("body", m.body)
   return origin + path + (params.length > 0 ? "?" + params.join("&") : "")
 }
+
+// The in-app route for an Outlook link, so the running page can show it
+// without a reload: "/calendar/item/<id>?..." or the link's own path. "" when
+// the link has no route in the page at `pageUrl` (another Outlook family,
+// a path the app does not route, or no page yet).
+//
+//   https://outlook.office365.com/owa/?itemid=AQMk...%3D&exvsurl=1&path=/calendar/item
+//     -> /calendar/item/AQMk...%3D?itemid=AQMk...%3D&exvsurl=1
+//   https://outlook.office.com/calendar/view/day/2026/10/21 -> the same path
+function appRoute(url, pageUrl) {
+  var u = String(url || "").trim()
+  if (!isOutlook(u) || !isOutlook(pageUrl)) return ""
+  // Outlook.com (live) and work accounts are different apps.
+  if ((hostOf(u) === "outlook.live.com") !== (hostOf(pageUrl) === "outlook.live.com")) return ""
+  var path = pathOf(u)
+  var qm = u.match(/\?([^#]*)/)
+  var query = qm ? qm[1] : ""
+  if (/^\/owa\/?$/i.test(path)) {
+    var params = query.split("&")
+    var itemId = ""
+    var route = ""
+    var rest = []
+    for (var i = 0; i < params.length; i++) {
+      var pair = params[i]
+      var key = pair.split("=")[0].toLowerCase()
+      var value = pair.slice(pair.indexOf("=") + 1)
+      if (key === "path") route = decode(value)
+      else {
+        if (key === "itemid") itemId = value
+        if (pair.length > 0) rest.push(pair)
+      }
+    }
+    if (route !== "/calendar/item" || !itemId) return ""
+    // The id stays encoded once, as Outlook writes it in its own URLs.
+    return "/calendar/item/" + encodeURIComponent(decode(itemId)) + (rest.length ? "?" + rest.join("&") : "")
+  }
+  if (/^\/(mail|calendar)(\/|$)/i.test(path)) return path + (query ? "?" + query : "")
+  return ""
+}

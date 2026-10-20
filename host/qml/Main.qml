@@ -508,10 +508,53 @@ Window {
   function openLink(url) {
     switch (Links.classify(url)) {
     case "mailto": compose(url); break
-    case "outlook": showWindow(); view.url = url; break
+    case "outlook": showWindow(); routeOrLoad(url); break
     case "teams": openTeams(url); break
     default: openExternal(url)
     }
+  }
+
+  // An Outlook link (for example an event from a calendar app): route to it
+  // inside the running page, as Outlook's own navigation does, so the app
+  // does not reload. Load the URL when there is no route or the page is not
+  // ready, and when the route does not land (see deepLinkCheck).
+  property string pendingDeepLink: ""
+
+  function routeOrLoad(url) {
+    var route = view.loading ? "" : Links.appRoute(url, String(view.url))
+    if (!route) { view.url = url; return }
+    trace("route", route)
+    pendingDeepLink = url
+    view.runJavaScript(deepLinkScript(route))
+    deepLinkCheck.restart()
+  }
+
+  // Push the route and tell the app's router. A route into a module that is
+  // not loaded yet (the calendar, seen from mail) can fall back to the
+  // module's start view; the module has loaded by then, so push it again.
+  // window.__omaoutlookRoute ends as "ok" or "failed".
+  function deepLinkScript(route) {
+    return "(function (route) {"
+      + " var target = route.split('?')[0];"
+      + " function go() { history.pushState(null, '', route); dispatchEvent(new PopStateEvent('popstate', { state: null })); }"
+      + " var item = target.indexOf('/calendar/item/') === 0;"
+      + " var section = '/' + target.split('/')[1] + '/';"
+      + " function landed() {"
+      // An event: its path, and its dialog is open. Other routes: the app may
+      // rewrite them (a day view becomes the week view), so the section is enough.
+      + "   if (item) return location.pathname === target && !!document.querySelector('[role=dialog]');"
+      + "   return (location.pathname + '/').indexOf(section) === 0;"
+      + " }"
+      + " window.__omaoutlookRoute = 'pending';"
+      + " go();"
+      + " var tries = 0;"
+      + " var timer = setInterval(function () {"
+      + "   tries++;"
+      + "   if (landed()) { clearInterval(timer); window.__omaoutlookRoute = 'ok'; return; }"
+      + "   if (tries % 4 === 0 && item && location.pathname !== target) go();"
+      + "   if (tries >= 16) { clearInterval(timer); window.__omaoutlookRoute = 'failed'; }"
+      + " }, 250);"
+      + "})(" + JSON.stringify(route) + ")"
   }
 
   function quit() {
@@ -688,6 +731,19 @@ Window {
   Timer { id: statusTimer; interval: 250; onTriggered: win.writeStatus() }
   Timer { id: heartbeat; interval: 60000; repeat: true; running: true; onTriggered: win.writeStatus() }
   Timer { id: focusTimer; interval: 150; onTriggered: Sys.run("sh", ["-c", win.focusCommand]) }
+  // The in-app route had 4 s (deepLinkScript); if it did not land, load the URL.
+  Timer {
+    id: deepLinkCheck
+    interval: 4500
+    onTriggered: {
+      var target = win.pendingDeepLink
+      win.pendingDeepLink = ""
+      if (!target) return
+      view.runJavaScript("window.__omaoutlookRoute", function (state) {
+        if (state !== "ok") { win.trace("route failed, load", target); view.url = target }
+      })
+    }
+  }
   Timer {
     id: geometryTimer
     interval: 800

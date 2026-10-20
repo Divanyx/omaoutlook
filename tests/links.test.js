@@ -8,7 +8,7 @@ const assert = require("assert")
 const source = fs.readFileSync(path.join(__dirname, "..", "host", "qml", "Links.js"), "utf8")
   .replace(/^\.pragma library\s*$/m, "")
 const L = {}
-new Function("exports", source + "\n" + ["classify", "parseMailto", "composeUrl", "isOutlook", "isMicrosoft", "hostOf"]
+new Function("exports", source + "\n" + ["classify", "parseMailto", "composeUrl", "isOutlook", "isMicrosoft", "hostOf", "appRoute"]
   .map(n => `exports.${n} = ${n};`).join("\n"))(L)
 
 const cases = [
@@ -63,4 +63,15 @@ assert.strictEqual(L.composeUrl("mailto:", "https://login.microsoftonline.com/")
 assert(L.isMicrosoft("https://outlook.cloud.microsoft/"))
 assert(!L.isMicrosoft("https://example.com/"))
 assert(!L.isMicrosoft("http://outlook.office.com/"))
-console.log(`links: ${cases.length} routes, mailto and compose ok`)
+// In-app routes: the running page shows these without a reload.
+const page = "https://outlook.cloud.microsoft/mail/"
+assert.strictEqual(L.appRoute("https://outlook.office365.com/owa/?itemid=AQMk%2FKI%3D%3D&exvsurl=1&path=/calendar/item", page),
+  "/calendar/item/AQMk%2FKI%3D%3D?itemid=AQMk%2FKI%3D%3D&exvsurl=1")
+assert.strictEqual(L.appRoute("https://outlook.office.com/calendar/view/day/2026/10/21", page), "/calendar/view/day/2026/10/21")
+assert.strictEqual(L.appRoute("https://outlook.cloud.microsoft/mail/inbox/id/AAQk?x=1", page), "/mail/inbox/id/AAQk?x=1")
+assert.strictEqual(L.appRoute("https://outlook.office365.com/owa/?itemid=X&path=/mail/inbox", page), "")
+assert.strictEqual(L.appRoute("https://outlook.live.com/calendar/0/view/day", page), "")
+assert.strictEqual(L.appRoute("https://outlook.office.com/people/", page), "")
+assert.strictEqual(L.appRoute("https://example.com/calendar/x", page), "")
+assert.strictEqual(L.appRoute("https://outlook.office.com/calendar/", "https://login.microsoftonline.com/x"), "")
+console.log(`links: ${cases.length} routes, mailto, compose and in-app routes ok`)

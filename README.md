@@ -130,7 +130,8 @@ omaoutlook --hidden        make sure Outlook runs, without showing the window
 omaoutlook toggle          show / hide
 omaoutlook show | hide
 omaoutlook compose         new message
-omaoutlook open <link>     mailto: starts a message, an Outlook link opens in the window,
+omaoutlook open <link>     mailto: starts a message, an Outlook link opens in the window
+                           (in place, without a reload, when the page can route to it),
                            anything else goes to the browser
 omaoutlook reload          start Outlook over in a fresh page (frees what it piled up)
 omaoutlook status          JSON: running, signedIn, unread, visible, popouts, memory (MiB)
