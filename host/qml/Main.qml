@@ -81,6 +81,9 @@ Window {
   readonly property int baselineDelayMs: 10 * 60 * 1000
   property real lastRecycle: 0
   property bool recycling: false
+  // An Outlook page has finished loading in the view. Cleared the moment a
+  // new page is asked for, before the view itself reports that it is loading.
+  property bool clientReady: false
   property int recyclePid: 0
   // A page must stay out of sight this long before it is reloaded, so a
   // window someone just hid for a moment is never pulled from under them.
@@ -447,6 +450,7 @@ Window {
     lastRecycle = Date.now()
     recyclePid = view.renderProcessPid
     recycling = true
+    clientReady = false
     view.visible = false
     view.lifecycleState = WebEngineView.LifecycleState.Discarded
     if (view.lifecycleState !== WebEngineView.LifecycleState.Discarded) {
@@ -465,6 +469,7 @@ Window {
     if (!recycling) return
     reviveTimer.stop()
     recycling = false
+    clientReady = false
     view.lifecycleState = WebEngineView.LifecycleState.Active
     view.visible = true
     pageBaseline = -1
@@ -520,9 +525,14 @@ Window {
   // ready, and when the route does not land (see deepLinkCheck).
   property string pendingDeepLink: ""
 
+  function loadPage(url) {
+    clientReady = false
+    view.url = url
+  }
+
   function routeOrLoad(url) {
-    var route = view.loading ? "" : Links.appRoute(url, String(view.url))
-    if (!route) { view.url = url; return }
+    var route = clientReady && !recycling && !view.loading ? Links.appRoute(url, String(view.url)) : ""
+    if (!route) { loadPage(url); return }
     trace("route", route)
     pendingDeepLink = url
     view.runJavaScript(deepLinkScript(route))
@@ -740,7 +750,7 @@ Window {
       win.pendingDeepLink = ""
       if (!target) return
       view.runJavaScript("window.__omaoutlookRoute", function (state) {
-        if (state !== "ok") { win.trace("route failed, load", target); view.url = target }
+        if (state !== "ok") { win.trace("route failed, load", target); win.loadPage(target) }
       })
     }
   }
@@ -929,6 +939,9 @@ Window {
     onTitleChanged: win.parseTitle()
     onJavaScriptConsoleMessage: function(level, message) { win.pageMessage(message) }
     onUrlChanged: statusTimer.restart()
+    onLoadingChanged: function(request) {
+      win.clientReady = request.status === WebEngineView.LoadSucceededStatus
+    }
 
     onPermissionRequested: function(permission) { win.grantPermission(permission, win) }
     onWebAuthUxRequested: function(request) { win.showWebAuthUx(request, win) }
