@@ -36,6 +36,9 @@ for (const name of names) {
   // Text must stay readable on the main surface and on the accent.
   assert(Theme.contrast(p.bg, p.fg) >= 4.5, `${name}: fg/bg contrast ${Theme.contrast(p.bg, p.fg).toFixed(2)}`)
   assert(Theme.contrast(p.accent, p.onBrand) >= 3, `${name}: onBrand contrast ${Theme.contrast(p.accent, p.onBrand).toFixed(2)}`)
+  // Toast actions ("Undo") read on the inverted surface.
+  const inv = Theme.contrast(t.colorNeutralBackgroundInverted, t.colorBrandForegroundInverted)
+  assert(inv >= 4.5, `${name}: inverted link contrast ${inv.toFixed(2)}`)
   // Deep surfaces step away from the main one in both modes. A pure-black
   // theme has nowhere deeper to go, so its own dark_background may sit a hair
   // above it; anything more than that is a mapping bug.

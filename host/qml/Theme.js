@@ -94,6 +94,17 @@ function readableOn(bg, candidates) {
   return best
 }
 
+// `color` pulled toward `toward` just far enough to read on `surface`: the
+// accent stays recognizable where it already contrasts and darkens (or
+// lightens) only as much as it has to.
+function readableShade(color, surface, toward, min) {
+  for (var t = 0; t <= 1.0001; t += 0.05) {
+    var c = mix(color, toward, t)
+    if (contrast(c, surface) >= min) return c
+  }
+  return toward
+}
+
 function pick(v, fallback) {
   return isColor(v) ? v : fallback
 }
@@ -212,9 +223,14 @@ function tokens(p) {
   t.colorBrandForeground2 = p.brandSoft
   t.colorBrandForeground2Hover = p.brandHover
   t.colorBrandForeground2Pressed = p.brandPressed
-  t.colorBrandForegroundInverted = accent
-  t.colorBrandForegroundInvertedHover = p.brandHover
-  t.colorBrandForegroundInvertedPressed = p.brandPressed
+  // Links on the inverted surface (toasts such as "Archived · Undo"). That
+  // surface is the foreground color, so an accent close to it -- or equal to
+  // it, as in Kanagawa -- would vanish; it is shaded toward the background.
+  var inverted = mix(fg, bg, 0.08)
+  var brandInverted = readableShade(accent, inverted, bg, 4.5)
+  t.colorBrandForegroundInverted = brandInverted
+  t.colorBrandForegroundInvertedHover = mix(brandInverted, bg, 0.15)
+  t.colorBrandForegroundInvertedPressed = mix(brandInverted, bg, 0.3)
   t.colorBrandForegroundOnLight = accent
   t.colorBrandForegroundOnLightHover = p.brandHover
   t.colorBrandForegroundOnLightPressed = p.brandPressed
@@ -235,7 +251,7 @@ function tokens(p) {
   t.colorNeutralBackground6 = p.bg6
   surface("7", p.bg6)
   t.colorNeutralBackground8 = p.bg6
-  t.colorNeutralBackgroundInverted = mix(fg, bg, 0.08)
+  t.colorNeutralBackgroundInverted = inverted
   t.colorNeutralBackgroundInvertedHover = mix(fg, bg, 0.14)
   t.colorNeutralBackgroundInvertedPressed = mix(fg, bg, 0.2)
   t.colorNeutralBackgroundInvertedSelected = mix(fg, bg, 0.16)
