@@ -27,8 +27,10 @@ behaving like the Outlook app — not like a browser tab.
 Outlook on the web is built on Fluent UI, which paints its surfaces from CSS
 custom properties. Omaoutlook injects one stylesheet that redefines them
 from the handful of colors an Omarchy theme ships, so nothing in Outlook
-has to be matched by selector, and tells Outlook whether the theme is light
-or dark so message bodies follow too.
+has to be matched by selector. The page is told whether the theme is light
+or dark (independent of what the system reports), so Outlook's own dark mode
+converts message bodies, and the neutral colors it converts them to are
+moved onto the theme's background and foreground.
 
 Two parts:
 
@@ -104,7 +106,7 @@ Settings live on the widget's entry in `~/.config/omarchy/shell.json`
 | `teamsLinks`      | `Omateams`                              | Teams meeting links: Omateams (when installed) or the browser |
 | `downloadDir`     | *(empty: `~/Downloads`)*                | Where attachments are saved |
 | `followTheme`     | `true`                                  | Re-skin Outlook with the Omarchy theme |
-| `useShellFont`    | `true`                                  | Render Outlook in the shell's monospace family |
+| `useShellFont`    | `true`                                  | Render Outlook's interface in the shell's monospace family (messages keep their own fonts) |
 | `zoom`            | `100`                                   | Zoom in percent |
 | `closeAction`     | `Hide window`                           | What the window's close button does; `Quit` ends the process |
 | `memoryLimit`     | `1536`                                  | MB the page may reach before it is reloaded in the background; `0` never |
@@ -197,8 +199,8 @@ deals with it on several levels:
   location need a yes in a dialog first, and only Microsoft's own sites can
   ask; every other request is refused. The answer is remembered per site.
 - **What theming can't reach.** Message bodies keep their sender's design
-  (Outlook's own dark mode adapts them), and images and a few brand accents
-  stay as they are.
+  and fonts (Outlook's own dark mode adapts the colors, the theme supplies
+  the grays), and images and colored brand accents stay as they are.
 - Omaoutlook is not affiliated with Microsoft. Microsoft Outlook is a
   trademark of Microsoft Corporation.
 

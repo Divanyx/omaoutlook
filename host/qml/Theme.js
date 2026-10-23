@@ -526,6 +526,14 @@ function radii(rounding) {
 // provider. `!important` beats the provider's own inline declarations.
 var SELECTOR = ':root, body, .fui-FluentProvider, [class*="fui-FluentProvider"]'
 
+// Mail content: the read message bodies and the compose editor. The sender's
+// HTML decides how a message looks, so the shell font must not reach it:
+// text without a font of its own would turn monospace while the rest of the
+// same paragraph keeps Aptos, and a reply drafted elsewhere would show in a
+// font nobody receiving it sees.
+var CONTENT = '[id^="UniqueMessageBody"], [id^="editorParent"] [contenteditable="true"], [contenteditable="true"][role="textbox"][aria-multiline="true"]'
+var CONTENT_FONT = 'Aptos, Calibri, "Segoe UI", Arial, Helvetica, sans-serif'
+
 function buildCss(colors, opts) {
   opts = opts || {}
   var p = palette(colors)
@@ -542,7 +550,10 @@ function buildCss(colors, opts) {
   for (var name in t) lines.push("  --" + name + ": " + t[name] + " !important;")
   lines.push("}")
   lines.push("html, body { background-color: " + p.bg + " !important; color: " + p.fg + "; color-scheme: " + p.mode + "; }")
-  if (opts.fontFamily) lines.push("body { font-family: var(--fontFamilyBase) !important; }")
+  if (opts.fontFamily) {
+    lines.push("body { font-family: var(--fontFamilyBase) !important; }")
+    lines.push(CONTENT + " { font-family: " + CONTENT_FONT + " !important; }")
+  }
   lines.push("* { scrollbar-color: " + alpha(p.fg, 0.3) + " transparent; scrollbar-width: thin; }")
   lines.push("::-webkit-scrollbar { width: 8px; height: 8px; }")
   lines.push("::-webkit-scrollbar-track { background: transparent; }")
@@ -555,12 +566,89 @@ function buildCss(colors, opts) {
   return lines.join("\n") + "\n"
 }
 
+// Where Outlook's dark mode puts message colors, and where they go instead.
+//
+// In dark mode Outlook rewrites every color in a message body to its own dark
+// palette, inline and !important, and keeps the sender's original next to it
+// (data-ogsc/data-ogac for text, data-ogsb/data-ogab for backgrounds): white
+// paper becomes #292929, black text #ffffff. No stylesheet can beat an
+// inline !important, so the page script moves those neutrals onto the theme's
+// own ramp instead -- Outlook's paper onto the theme background, its ink onto
+// the theme foreground, the grays in between proportionally. Colored text and
+// fills keep Outlook's conversion. Light themes leave messages as sent.
+var OWA_PAPER = 41, OWA_INK = 255
+
+function bodyRamp(colors) {
+  var p = palette(colors)
+  if (!p.dark) return null
+  var bg = hexToRgb(p.bg), fg = hexToRgb(p.fg)
+  return { paper: OWA_PAPER, ink: OWA_INK, bg: [bg.r, bg.g, bg.b], fg: [fg.r, fg.g, fg.b] }
+}
+
+// The neutral Outlook produced, moved onto the ramp; null for colors that are
+// not neutral (or not parseable) and stay as Outlook drew them. Kept as source
+// text because the page script carries it into the page, and the QML engine
+// cannot turn a function back into source.
+var RAMP_COLOR = [
+  'var m = String(value || "").match(/^rgba?\\(\\s*(\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?\\s*\\)$/);',
+  'if (!m || !ramp) return null;',
+  'var r = +m[1], g = +m[2], b = +m[3], a = m[4] === undefined ? 1 : +m[4];',
+  'if (a === 0 || Math.max(r, g, b) - Math.min(r, g, b) > 12) return null;',
+  'var t = ((r + g + b) / 3 - ramp.paper) / (ramp.ink - ramp.paper);',
+  't = Math.max(0, Math.min(1, t));',
+  'var c = [];',
+  'for (var i = 0; i < 3; i++) c.push(Math.round(ramp.bg[i] + (ramp.fg[i] - ramp.bg[i]) * t));',
+  'return a < 1 ? "rgba(" + c.join(", ") + ", " + a + ")" : "rgb(" + c.join(", ") + ")";'
+].join("\n")
+var rampColor = new Function("value", "ramp", RAMP_COLOR)
+
 // The page-side script. Injected at document creation into every frame; it
-// installs the stylesheet as early as possible and exposes __omaoutlookApply so
-// a theme switch can restyle the running page without a reload.
-function pageScript(css) {
+// installs the stylesheet as early as possible, keeps converted message colors
+// on the theme ramp, and exposes __omaoutlookApply so a theme switch can
+// restyle the running page without a reload.
+//
+// `scheme` ("dark", "light" or null) pins what the page reads for
+// prefers-color-scheme. Outlook set to follow the system converts message
+// bodies only while that query says dark; the host asks Qt for the theme's
+// scheme too, but whenever Chromium still reports light -- a page created
+// before the request landed, the system flipping it back -- every message
+// arrives as sent: white paper under a dark frame. Answering the query in the
+// page itself makes Outlook's mode follow the Omarchy theme and nothing else.
+function pageScript(css, ramp, scheme) {
   return "(function () {\n"
     + "  var css = " + JSON.stringify(css) + ";\n"
+    + "  var ramp = " + JSON.stringify(ramp || null) + ";\n"
+    + "  var scheme = " + JSON.stringify(scheme || null) + ";\n"
+    + "  function rampColor(value, ramp) {\n" + RAMP_COLOR + "\n  }\n"
+    + "  var RX = /\\(\\s*prefers-color-scheme\\s*:\\s*(dark|light)\\s*\\)/i;\n"
+    + "  var queries = [];\n"
+    + "  var realMatches = Object.getOwnPropertyDescriptor(MediaQueryList.prototype, 'matches').get;\n"
+    + "  var realMatchMedia = window.matchMedia;\n"
+    + "  function pinned(mql) { return scheme ? scheme === mql.__omaoutlookScheme : realMatches.call(mql); }\n"
+    + "  window.matchMedia = function (query) {\n"
+    + "    var mql = realMatchMedia.call(window, query);\n"
+    + "    var m = RX.exec(String(query));\n"
+    + "    if (!m || mql.__omaoutlookScheme) return mql;\n"
+    + "    mql.__omaoutlookScheme = m[1].toLowerCase();\n"
+    + "    Object.defineProperty(mql, 'matches', { configurable: true, get: function () { return pinned(mql); } });\n"
+    // Registered before Outlook's own listeners: a system change that
+    // disagrees with the pinned scheme never reaches them.
+    + "    mql.addEventListener('change', function (e) { if (e.matches !== pinned(mql)) e.stopImmediatePropagation(); });\n"
+    // Held weakly: Outlook may ask again on every render.
+    + "    queries.push(new WeakRef(mql));\n"
+    + "    return mql;\n"
+    + "  };\n"
+    + "  function live() {\n"
+    + "    queries = queries.filter(function (r) { return r.deref(); });\n"
+    + "    return queries.map(function (r) { return r.deref(); });\n"
+    + "  }\n"
+    + "  function announce(list, before) {\n"
+    + "    for (var i = 0; i < list.length; i++) {\n"
+    + "      var q = list[i];\n"
+    + "      if (before[i] === q.matches) continue;\n"
+    + "      try { q.dispatchEvent(new MediaQueryListEvent('change', { media: q.media, matches: q.matches })); } catch (e) {}\n"
+    + "    }\n"
+    + "  }\n"
     + "  function apply() {\n"
     + "    var el = document.getElementById('omaoutlook-theme');\n"
     + "    if (!el) {\n"
@@ -570,8 +658,82 @@ function pageScript(css) {
     + "    }\n"
     + "    if (el.textContent !== css) el.textContent = css;\n"
     + "  }\n"
-    + "  window.__omaoutlookApply = function (next) { css = String(next || ''); apply(); };\n"
-    + "  if (document.documentElement) apply();\n"
-    + "  document.addEventListener('DOMContentLoaded', apply);\n"
+    // Outlook's own value is kept in data-omaoutlook-c/-b, so a theme switch
+    // or a light theme starts from it rather than from the last rewrite.
+    + "  var SEL = '[data-ogsc],[data-ogac],[data-ogsb],[data-ogab]';\n"
+    + "  function move(el, prop, key) {\n"
+    + "    var now = el.style.getPropertyValue(prop);\n"
+    + "    var mine = el.getAttribute('data-omaoutlook-m' + key);\n"
+    + "    if (now && now !== mine) el.setAttribute('data-omaoutlook-' + key, now);\n"
+    + "    var owa = el.getAttribute('data-omaoutlook-' + key);\n"
+    + "    if (!owa) return;\n"
+    + "    var next = rampColor(owa, ramp) || owa;\n"
+    + "    if (next === now) return;\n"
+    + "    el.setAttribute('data-omaoutlook-m' + key, next);\n"
+    + "    el.style.setProperty(prop, next, 'important');\n"
+    + "    if (key === 'b' && el.hasAttribute('bgcolor')) el.setAttribute('bgcolor', next);\n"
+    + "  }\n"
+    // The compose editor converts the same way, but into custom properties
+    // (--darkColor_rgb_255__255__255_: rgb(41, 41, 41)) set on its scroll
+    // container, which the message text then uses through var().
+    + "  var VARS = '[style*=\"--darkColor\"]';\n"
+    + "  function json(el, name) { try { return JSON.parse(el.getAttribute(name) || '{}'); } catch (e) { return {}; } }\n"
+    + "  function moveVars(el) {\n"
+    + "    var owa = json(el, 'data-omaoutlook-v'), mine = json(el, 'data-omaoutlook-mv'), changed = false;\n"
+    + "    for (var i = 0; i < el.style.length; i++) {\n"
+    + "      var prop = el.style[i];\n"
+    + "      if (prop.indexOf('--darkColor') !== 0) continue;\n"
+    + "      var now = el.style.getPropertyValue(prop).trim();\n"
+    + "      if (now !== mine[prop]) owa[prop] = now;\n"
+    + "      var next = rampColor(owa[prop], ramp) || owa[prop];\n"
+    + "      mine[prop] = next;\n"
+    + "      if (next !== now) { el.style.setProperty(prop, next); changed = true; }\n"
+    + "    }\n"
+    + "    if (!changed) return;\n"
+    + "    el.setAttribute('data-omaoutlook-v', JSON.stringify(owa));\n"
+    + "    el.setAttribute('data-omaoutlook-mv', JSON.stringify(mine));\n"
+    + "  }\n"
+    + "  function recolor() {\n"
+    + "    pending = false;\n"
+    + "    var list = document.querySelectorAll(SEL);\n"
+    + "    for (var i = 0; i < list.length; i++) {\n"
+    + "      var el = list[i];\n"
+    + "      if (el.hasAttribute('data-ogsc') || el.hasAttribute('data-ogac')) move(el, 'color', 'c');\n"
+    + "      if (el.hasAttribute('data-ogsb') || el.hasAttribute('data-ogab')) move(el, 'background-color', 'b');\n"
+    + "    }\n"
+    + "    var hosts = document.querySelectorAll(VARS);\n"
+    + "    for (var j = 0; j < hosts.length; j++) moveVars(hosts[j]);\n"
+    + "  }\n"
+    + "  var pending = false;\n"
+    + "  function schedule() {\n"
+    + "    if (pending) return;\n"
+    + "    pending = true;\n"
+    + "    requestAnimationFrame(recolor);\n"
+    + "  }\n"
+    + "  function watch() {\n"
+    + "    if (window.__omaoutlookRecolor || !document.documentElement) return;\n"
+    + "    window.__omaoutlookRecolor = new MutationObserver(function (records) {\n"
+    + "      for (var i = 0; i < records.length; i++) {\n"
+    + "        var r = records[i];\n"
+    + "        if (r.type === 'childList' ? r.addedNodes.length : r.target.nodeType === 1 && (r.target.matches(SEL) || r.target.matches(VARS))) { schedule(); return; }\n"
+    + "      }\n"
+    + "    });\n"
+    + "    window.__omaoutlookRecolor.observe(document.documentElement, {\n"
+    + "      childList: true, subtree: true, attributes: true,\n"
+    + "      attributeFilter: ['style', 'data-ogsc', 'data-ogac', 'data-ogsb', 'data-ogab']\n"
+    + "    });\n"
+    + "    schedule();\n"
+    + "  }\n"
+    + "  window.__omaoutlookApply = function (next, nextRamp, nextScheme) {\n"
+    + "    var list = live(), before = list.map(function (q) { return q.matches; });\n"
+    + "    css = String(next || '');\n"
+    + "    ramp = nextRamp || null;\n"
+    + "    scheme = nextScheme || null;\n"
+    + "    apply();\n"
+    + "    announce(list, before);\n"
+    + "    schedule();\n"
+    + "  };\n"
+    + "  if (document.documentElement) { apply(); watch(); }\n"
+    + "  document.addEventListener('DOMContentLoaded', function () { apply(); watch(); });\n"
     + "})();\n"
 }

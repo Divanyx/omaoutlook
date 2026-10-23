@@ -9,7 +9,8 @@ const source = fs.readFileSync(path.join(__dirname, "..", "host", "qml", "Theme.
   .replace(/^\.pragma library\s*$/m, "")
 const Theme = {}
 new Function("exports", source + "\n" + [
-  "parseColors", "buildCss", "palette", "tokens", "pageScript", "mix", "alpha", "contrast", "luminance", "radii"
+  "parseColors", "buildCss", "palette", "tokens", "pageScript", "mix", "alpha", "contrast", "luminance", "radii",
+  "bodyRamp", "rampColor"
 ].map(n => `exports.${n} = ${n};`).join("\n"))(Theme)
 
 const themesDir = "/usr/share/omarchy/themes"
@@ -45,7 +46,9 @@ for (const name of names) {
   assert(css.includes("--borderRadiusMedium: 4px"), `${name}: radii missing`)
   assert(css.includes("--fontFamilyBase: monospace"), `${name}: font missing`)
   assert(css.includes(`color-scheme: ${p.mode}`), `${name}: color-scheme`)
-  const script = Theme.pageScript(css)
+  const ramp = Theme.bodyRamp(colors)
+  assert.strictEqual(!!ramp, p.dark, `${name}: ramp only for dark themes`)
+  const script = Theme.pageScript(css, ramp, p.mode)
   new Function(script)  // must at least parse
   checked++
 }
@@ -61,5 +64,22 @@ assert(!Theme.buildCss({}, {}).includes("--fontFamilyBase"), "font emitted witho
 const minimal = Theme.palette({ background: "#000000", foreground: "#ffffff", accent: "#ff0000" })
 assert.strictEqual(minimal.mode, "dark")
 assert(Object.keys(Theme.tokens(minimal)).length >= 200)
+
+// Mail content keeps the sender's fonts; the shell font stays in the frame.
+const withFont = Theme.buildCss({}, { fontFamily: "monospace" })
+assert(/\[id\^="UniqueMessageBody"\][^{]*\{ font-family: Aptos/.test(withFont), "message bodies inherit the shell font")
+
+// Outlook's dark conversion lands on the theme ramp: its paper on the
+// background, its ink on the foreground, colored text untouched.
+const ramp = Theme.bodyRamp({ background: "#1f1f28", foreground: "#dcd7ba" })
+assert.strictEqual(Theme.rampColor("rgb(41, 41, 41)", ramp), "rgb(31, 31, 40)")
+assert.strictEqual(Theme.rampColor("rgb(255, 255, 255)", ramp), "rgb(220, 215, 186)")
+assert.strictEqual(Theme.rampColor("rgb(10, 10, 10)", ramp), "rgb(31, 31, 40)")
+assert.strictEqual(Theme.rampColor("rgba(255, 255, 255, 0.5)", ramp), "rgba(220, 215, 186, 0.5)")
+assert.strictEqual(Theme.rampColor("rgb(200, 30, 30)", ramp), null)
+assert.strictEqual(Theme.rampColor("rgba(0, 0, 0, 0)", ramp), null)
+assert.strictEqual(Theme.rampColor("var(--x)", ramp), null)
+assert.strictEqual(Theme.rampColor("rgb(41, 41, 41)", null), null)
+assert.strictEqual(Theme.bodyRamp({ mode: "light", background: "#ffffff", foreground: "#000000" }), null)
 
 console.log(`ok - ${checked} themes, ${Object.keys(Theme.tokens(Theme.palette({}))).length} tokens each`)

@@ -52,6 +52,8 @@ Window {
   property var themeColors: ({})
   readonly property var themePalette: Theme.palette(themeColors)
   property string themeCss: ""
+  property var themeRamp: null
+  readonly property string themeScheme: themeEnabled ? themePalette.mode : ""
   property int rounding: -1
   property int roundingRequest: -1
   property bool ready: false
@@ -174,6 +176,7 @@ Window {
 
   function rebuildCss() {
     themeCss = themeEnabled ? Theme.buildCss(themeColors, { fontFamily: fontFamily, rounding: rounding }) : ""
+    themeRamp = themeEnabled ? Theme.bodyRamp(themeColors) : null
     installThemeScript()
     applyThemeLive()
   }
@@ -185,7 +188,7 @@ Window {
     var old = profile.userScripts.find("omaoutlook-theme")
     for (var i = 0; i < old.length; i++) profile.userScripts.remove(old[i])
     if (themeCss.length === 0) return
-    installScript("omaoutlook-theme", Theme.pageScript(themeCss), true)
+    installScript("omaoutlook-theme", Theme.pageScript(themeCss, themeRamp, themeScheme), true)
   }
 
   function installScript(name, source, subframes) {
@@ -199,7 +202,7 @@ Window {
   }
 
   function themeScript() {
-    return "if (window.__omaoutlookApply) window.__omaoutlookApply(" + JSON.stringify(themeCss) + ");"
+    return "if (window.__omaoutlookApply) window.__omaoutlookApply(" + JSON.stringify(themeCss) + ", " + JSON.stringify(themeRamp) + ", " + JSON.stringify(themeScheme) + ");"
       + " else { var s = document.getElementById('omaoutlook-theme'); if (s) s.remove(); }"
   }
 
